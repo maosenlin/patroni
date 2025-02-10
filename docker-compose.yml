@@ -10,12 +10,14 @@
 version: "2"
 
 networks:
-    demo:
+    postgres-backend:
+
 
 services:
     etcd1: &etcd
         image: ${PATRONI_TEST_IMAGE:-patroni}
-        networks: [ demo ]
+        networks:
+            - postgres-backend
         environment:
             ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
             ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
@@ -23,63 +25,98 @@ services:
             ETCD_INITIAL_CLUSTER_STATE: new
             ETCD_INITIAL_CLUSTER_TOKEN: tutorial
             ETCD_UNSUPPORTED_ARCH: arm64
-        container_name: demo-etcd1
+        container_name: etcd1
         hostname: etcd1
         command: etcd --name etcd1 --initial-advertise-peer-urls http://etcd1:2380
+        restart: unless-stopped
 
     etcd2:
         <<: *etcd
-        container_name: demo-etcd2
+        container_name: etcd2
         hostname: etcd2
         command: etcd --name etcd2 --initial-advertise-peer-urls http://etcd2:2380
 
     etcd3:
         <<: *etcd
-        container_name: demo-etcd3
+        container_name: etcd3
         hostname: etcd3
         command: etcd --name etcd3 --initial-advertise-peer-urls http://etcd3:2380
 
     haproxy:
         image: ${PATRONI_TEST_IMAGE:-patroni}
-        networks: [ demo ]
+        networks:
+            - postgres-backend
         env_file: docker/patroni.env
         hostname: haproxy
-        container_name: demo-haproxy
+        container_name: haproxy
         ports:
             - "5000:5000"
             - "5001:5001"
         command: haproxy
+        restart: unless-stopped
         environment: &haproxy_env
             ETCDCTL_ENDPOINTS: http://etcd1:2379,http://etcd2:2379,http://etcd3:2379
             PATRONI_ETCD3_HOSTS: "'etcd1:2379','etcd2:2379','etcd3:2379'"
             PATRONI_SCOPE: demo
 
+    pgbackrest:
+        image: ${PATRONI_TEST_IMAGE:-patroni}
+        networks:
+            - postgres-backend
+        env_file: docker/patroni.env
+        hostname: pgbackrest
+        command: pgbackrest
+        container_name: pgbackrest
+        restart: unless-stopped
+        environment:
+            <<: *haproxy_env
+            PATRONI_NAME: pgbackrest
+
+    pgbouncer:
+        image: ${PATRONI_TEST_IMAGE:-patroni}
+        networks:
+            - postgres-backend
+        env_file: docker/patroni.env
+        hostname: pgbouncer
+        command: pgbouncer
+        container_name: pgbouncer
+        restart: unless-stopped
+        environment:
+            <<: *haproxy_env
+            PATRONI_NAME: pgbouncer
+
     patroni1:
         image: ${PATRONI_TEST_IMAGE:-patroni}
-        networks: [ demo ]
+        networks:
+            - postgres-backend
         env_file: docker/patroni.env
         hostname: patroni1
-        container_name: demo-patroni1
+        container_name: patroni1
+        restart: unless-stopped
         environment:
             <<: *haproxy_env
             PATRONI_NAME: patroni1
 
     patroni2:
         image: ${PATRONI_TEST_IMAGE:-patroni}
-        networks: [ demo ]
+        networks:
+            - postgres-backend
         env_file: docker/patroni.env
         hostname: patroni2
-        container_name: demo-patroni2
+        container_name: patroni2
+        restart: unless-stopped
         environment:
             <<: *haproxy_env
             PATRONI_NAME: patroni2
 
     patroni3:
         image: ${PATRONI_TEST_IMAGE:-patroni}
-        networks: [ demo ]
+        networks:
+            - postgres-backend
         env_file: docker/patroni.env
         hostname: patroni3
-        container_name: demo-patroni3
+        container_name: patroni3
+        restart: unless-stopped
         environment:
             <<: *haproxy_env
             PATRONI_NAME: patroni3

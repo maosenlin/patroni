@@ -1,0 +1,6 @@
+[template]
+# prefix = "pgbouncer"
+owner = "postgres"
+mode = "0644"
+src = "pgbackrest.tmpl"
+dest = "/etc/pgbackrest.conf"

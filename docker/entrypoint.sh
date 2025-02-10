@@ -16,6 +16,34 @@ readonly DOCKER_IP
 export DUMB_INIT_SETSID=0
 
 case "$1" in
+    pgbackrest)
+        exec dumb-init pgbackrest --stanza=demo stanza-create
+        ;;
+    pgbouncer)
+        /usr/sbin/pgbouncer -d /etc/pgbouncer/pgbouncer.ini
+        set -- confd "-prefix=$PATRONI_NAMESPACE/$PATRONI_SCOPE" -interval=10 -backend
+        if [ -n "$PATRONI_ZOOKEEPER_HOSTS" ]; then
+            while ! /usr/share/zookeeper/bin/zkCli.sh -server "$PATRONI_ZOOKEEPER_HOSTS" ls /; do
+                sleep 1
+            done
+            set -- "$@" zookeeper -node "$PATRONI_ZOOKEEPER_HOSTS"
+        else
+            while ! etcdctl member list 2> /dev/null; do
+                sleep 1
+            done
+            set -- "$@" etcdv3
+            while IFS='' read -r line; do
+                set -- "$@" -node "$line"
+            done <<-EOT
+$(echo "$ETCDCTL_ENDPOINTS" | sed 's/,/\n/g')
+EOT
+        fi
+        echo "$@"
+        find /etc/confd/conf.d/ -maxdepth 1 ! -name 'pgbouncer.toml' -type f -exec rm -f {} \;
+        # 接下来，尝试删除空目录（注意：这只会删除真正为空的目录）
+        find /etc/confd/conf.d/ -maxdepth 1 ! -name 'pgbouncer.toml' -type d -empty -exec rmdir {} \;
+        exec dumb-init "$@"
+        ;;
     haproxy)
         haproxy -f /etc/haproxy/haproxy.cfg -p /var/run/haproxy.pid -D
         set -- confd "-prefix=$PATRONI_NAMESPACE/$PATRONI_SCOPE" -interval=10 -backend
@@ -35,6 +63,10 @@ case "$1" in
 $(echo "$ETCDCTL_ENDPOINTS" | sed 's/,/\n/g')
 EOT
         fi
+        echo "$@"
+        find /etc/confd/conf.d/ -maxdepth 1 ! -name 'haproxy.toml' -type f -exec rm -f {} \;
+        # 接下来，尝试删除空目录（注意：这只会删除真正为空的目录）
+        find /etc/confd/conf.d/ -maxdepth 1 ! -name 'haproxy.toml' -type d -empty -exec rmdir {} \;
         exec dumb-init "$@"
         ;;
     etcd)

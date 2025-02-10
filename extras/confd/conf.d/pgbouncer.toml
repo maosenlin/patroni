@@ -1,11 +1,11 @@
 [template]
-prefix = "/service/batman"
+# prefix = "pgbouncer"
 owner = "postgres"
 mode = "0644"
 src = "pgbouncer.tmpl"
 dest = "/etc/pgbouncer/pgbouncer.ini"
 
-reload_cmd = "systemctl reload pgbouncer"
+reload_cmd = "/usr/sbin/pgbouncer -Rd /etc/pgbouncer/pgbouncer.ini"
 
 keys = [
     "/members/","/leader"
